@@ -82,6 +82,15 @@ def test_console_confirmer_answers():
     assert cli.ConsoleConfirmer(read=eof)("x", {}) is False
 
 
+def test_confirmer_always_shows_details_not_in_summary(capsys):
+    c = cli.ConsoleConfirmer(read=lambda p: "n")
+    c("run_applescript", {"script": 'tell application "Finder" to delete'})
+    c("open_app", {"app_name": "Notes"})
+    err = capsys.readouterr().err
+    assert 'tell application "Finder" to delete' in err  # short script still shown before approval
+    assert "app_name" not in err  # already in "open Notes"
+
+
 def test_confirmer_speaks_question():
     spoken = []
 
@@ -97,6 +106,7 @@ def test_describe_action():
     assert cli.describe_action("hotkey", {"keys": ["command", "space"]}) == "press command+space"
     assert cli.describe_action("open_app", {}) == "open app"  # missing args fall back to the tool name
     assert cli.describe_action("mystery_tool", {"a": 1}) == "mystery tool"
+    assert cli.describe_action("type_text", {"text": "Shopping\neggs\n\nmilk"}) == "type: Shopping / eggs / milk"
 
 
 def test_module_entry_point():

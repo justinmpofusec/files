@@ -46,11 +46,13 @@ ACTION_PHRASES = {
 
 
 def describe_action(name: str, args: dict[str, Any]) -> str:
+    """One-line, speakable summary of an action (full values are printed separately when long)."""
     template = ACTION_PHRASES.get(name)
     if template:
         fmt = {k: "+".join(v) if isinstance(v, list) else v for k, v in args.items()}
         try:
-            return template.format(**fmt)
+            text = template.format(**fmt)
+            return " / ".join(line.strip() for line in text.splitlines() if line.strip())
         except (KeyError, IndexError):
             pass
     return name.replace("_", " ")
@@ -75,7 +77,7 @@ class ConsoleConfirmer:
         print(f"\n  Jarvis wants to {summary}", file=sys.stderr)
         for key, value in args.items():
             shown = value if isinstance(value, str) else json.dumps(value)
-            if "\n" in shown or len(shown) > 60:  # show long values (scripts, messages) in full
+            if shown not in summary:  # anything the one-line summary doesn't already show, e.g. a script
                 print(f"    {key}:\n      " + shown.replace("\n", "\n      "), file=sys.stderr)
         if self.speaker:
             self.speaker.say(f"May I {summary}?")
