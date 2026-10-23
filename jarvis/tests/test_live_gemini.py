@@ -42,3 +42,21 @@ def test_live_vision_locate():
 
     loc = ScreenVision(Screen(size=(1000, 1000)), GeminiLLM(KEY, MODEL)).locate("the blue rectangle")
     assert loc.found and 650 < loc.x < 950 and 650 < loc.y < 850
+
+
+def test_live_transcription():
+    import shutil
+    import subprocess
+    import tempfile
+
+    if not shutil.which("espeak-ng") and not shutil.which("say"):
+        pytest.skip("no speech synthesizer to make test audio")
+    with tempfile.TemporaryDirectory() as d:
+        if shutil.which("say"):
+            path = f"{d}/a.wav"
+            subprocess.run(["say", "-o", path, "--data-format=LEI16@16000", "open spotify please"], check=True)
+        else:
+            path = f"{d}/a.wav"
+            subprocess.run(["espeak-ng", "-w", path, "open spotify please"], check=True)
+        text = GeminiLLM(KEY, MODEL).transcribe(open(path, "rb").read())
+    assert "spotify" in text.lower()

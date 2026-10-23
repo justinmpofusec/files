@@ -7,7 +7,7 @@ name = "jarvis-assistant"
 version = "0.1.0"
 description = "A Gemini-powered desktop assistant that can message, open apps, see the screen and control the computer."
 requires-python = ">=3.10"
-dependencies = ["google-genai>=1.0", "pyautogui>=0.9.54", "mss>=9.0", "pillow>=10.0"]
+dependencies = ["google-genai>=1.0", "pyautogui>=0.9.54", "mss>=9.0", "pillow>=10.0", "sounddevice>=0.4.6"]
 
 [project.optional-dependencies]
 dev = ["pytest>=8.0"]

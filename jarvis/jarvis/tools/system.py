@@ -64,7 +64,18 @@ def build(ctx: Context) -> list[Tool]:
     def run_shell_command(command: str, timeout_seconds: int = 60) -> str:
         return ctx.executor.run(command, shell=True, timeout=timeout_seconds).summary()
 
-    @tool("Get current date/time and basic information about this computer.")
+    @tool("macOS only: run an AppleScript to control Mac apps directly (Music, Finder, Notes, Reminders, Calendar, "
+          "Safari, system volume...). Prefer this over clicking when an app is scriptable.", sensitive=True,
+          script="The AppleScript source, e.g. 'tell application \"Music\" to play'.")
+    def run_applescript(script: str) -> str:
+        if os_name != "Darwin":
+            return "AppleScript only works on macOS."
+        result = ctx.executor.run(["osascript", "-e", script], timeout=60)
+        if not result.ok:
+            return f"AppleScript error: {result.stderr.strip()}"
+        return result.stdout.strip() or "Done."
+
+    @tool("Get current date/time and basic information about this computer.", read_only=True)
     def system_info() -> dict:
         return {
             "now": _dt.datetime.now().astimezone().isoformat(timespec="seconds"),
@@ -75,7 +86,7 @@ def build(ctx: Context) -> list[Tool]:
             "dry_run": ctx.config.dry_run,
         }
 
-    @tool("List files in a folder.", path="Folder path, default home (~).")
+    @tool("List files in a folder.", read_only=True, path="Folder path, default home (~).")
     def list_folder(path: str = "~") -> str:
         folder = Path(path).expanduser()
         if not folder.is_dir():
@@ -83,10 +94,13 @@ def build(ctx: Context) -> list[Tool]:
         entries = sorted(folder.iterdir(), key=lambda p: (not p.is_dir(), p.name.lower()))[:200]
         return "\n".join(f"{'[dir] ' if p.is_dir() else ''}{p.name}" for p in entries) or "(empty)"
 
-    @tool("Wait for a number of seconds (e.g. for an app to finish loading).", seconds="1-30 seconds.")
+    @tool("Wait for a number of seconds (e.g. for an app to finish loading).", read_only=True, seconds="1-30 seconds.")
     def wait(seconds: float) -> str:
         seconds = max(0.0, min(float(seconds), 30.0))
         ctx.sleep(seconds)
         return f"Waited {seconds:g}s."
 
-    return [open_app, open_url, web_search, open_path, run_shell_command, system_info, list_folder, wait]
+    tools = [open_app, open_url, web_search, open_path, run_shell_command, system_info, list_folder, wait]
+    if os_name == "Darwin":
+        tools.append(run_applescript)
+    return tools

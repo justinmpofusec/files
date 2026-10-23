@@ -17,7 +17,8 @@ class Tool:
     description: str
     func: Callable[..., Any]
     parameters: dict[str, Any]
-    sensitive: bool = False  # needs user confirmation (sends messages, runs commands, ...)
+    sensitive: bool = False  # high-stakes (sends messages, runs commands, ...): asks unless confirm mode is "never"
+    read_only: bool = False  # only looks (screenshots, info): never asks in "actions" mode
 
     def __call__(self, **kwargs: Any) -> Any:
         return self.func(**kwargs)
@@ -50,7 +51,8 @@ def _schema_for(func: Callable, param_docs: dict[str, str]) -> dict[str, Any]:
     return schema
 
 
-def tool(summary: str, /, *, sensitive: bool = False, tool_name: str | None = None, **param_docs: str):
+def tool(summary: str, /, *, sensitive: bool = False, read_only: bool = False, tool_name: str | None = None,
+         **param_docs: str):
     """Decorator turning a function into a Tool. Keyword args document each parameter."""
 
     def wrap(func: Callable) -> Tool:
@@ -60,6 +62,7 @@ def tool(summary: str, /, *, sensitive: bool = False, tool_name: str | None = No
             func=func,
             parameters=_schema_for(func, param_docs),
             sensitive=sensitive,
+            read_only=read_only,
         )
 
     return wrap

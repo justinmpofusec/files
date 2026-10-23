@@ -45,6 +45,11 @@ class ChatSession(Protocol):
 class LLM(Protocol):
     def chat(self, system_prompt: str, tools: list[Tool]) -> ChatSession: ...
     def vision(self, image_png: bytes, prompt: str, *, json_output: bool = False) -> str: ...
+    def transcribe(self, wav: bytes) -> str: ...
+
+
+TRANSCRIBE_PROMPT = ("Transcribe the speech in this recording exactly, in its original language. Reply with only the "
+                     "spoken words. If there is no intelligible speech, reply with an empty string.")
 
 
 class LLMError(RuntimeError):
@@ -98,6 +103,15 @@ class GeminiLLM:
             config=config,
         )
         return response.text or ""
+
+    def transcribe(self, wav: bytes) -> str:
+        from google.genai import types
+
+        response = self.generate(
+            model=self.model,
+            contents=[types.Part.from_bytes(data=wav, mime_type="audio/wav"), TRANSCRIBE_PROMPT],
+        )
+        return (response.text or "").strip().strip('"')
 
 
 class GeminiChat:
@@ -159,8 +173,11 @@ class GeminiChat:
 class ScriptedLLM:
     """Replays canned replies. Each item is an LLMReply, or a callable(message) -> LLMReply."""
 
-    def __init__(self, replies: list[Any] | None = None, vision_replies: list[str] | None = None) -> None:
+    def __init__(self, replies: list[Any] | None = None, vision_replies: list[str] | None = None,
+                 transcripts: list[str] | None = None) -> None:
         self.replies = list(replies or [])
+        self.transcripts = list(transcripts or [])
+        self.audio: list[bytes] = []
         self.vision_replies = list(vision_replies or [])
         self.sent: list[Any] = []
         self.vision_calls: list[str] = []
@@ -177,6 +194,11 @@ class ScriptedLLM:
         if not self.vision_replies:
             return json.dumps({"found": False}) if json_output else "An empty desktop."
         return self.vision_replies.pop(0)
+
+    def transcribe(self, wav: bytes) -> str:
+        assert wav.startswith(b"RIFF"), "transcribe expects WAV bytes"
+        self.audio.append(wav)
+        return self.transcripts.pop(0) if self.transcripts else ""
 
 
 @dataclass

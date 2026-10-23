@@ -88,3 +88,14 @@ def test_real_executor_runs_commands():
     assert ex.run(["definitely-not-a-real-binary-xyz"]).returncode == 127
     assert ex.run("exit 3", shell=True).returncode == 3
     assert ex.run(["sleep", "5"], timeout=0.2).returncode == 124
+
+
+def test_applescript_tool_on_mac_only(make_ctx):
+    ctx = make_ctx("Darwin")
+    t = tools(ctx)["run_applescript"]
+    assert t.sensitive
+    assert t(script='tell application "Music" to play') == "[dry-run]"
+    assert ctx.executor.calls == [("run", ["osascript", "-e", 'tell application "Music" to play'], False)]
+    ctx.executor.results["osascript"] = CommandResult(1, stderr="Music got an error")
+    assert t(script="x") == "AppleScript error: Music got an error"
+    assert "run_applescript" not in tools(make_ctx("Linux"))

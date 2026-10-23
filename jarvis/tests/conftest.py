@@ -5,6 +5,7 @@ from typing import Any
 
 import pytest
 
+from jarvis.actionlog import ActionLog
 from jarvis.computer import RecordingComputer
 from jarvis.config import Config
 from jarvis.context import Context
@@ -31,11 +32,12 @@ def say(text: str) -> LLMReply:
 
 
 @pytest.fixture(autouse=True)
-def clean_env(monkeypatch):
+def clean_env(monkeypatch, tmp_path):
     """Isolate tests from the developer's real Jarvis settings and from each other's .env loading."""
     import os
 
     env = {k: v for k, v in os.environ.items() if not k.startswith(("JARVIS_", "GEMINI_", "GOOGLE_API"))}
+    env["JARVIS_LOG_FILE"] = str(tmp_path / "actions.jsonl")  # never write to the real ~/.jarvis
     monkeypatch.setattr(os, "environ", env)
 
 
@@ -51,6 +53,7 @@ def make_ctx(tmp_path):
             computer=RecordingComputer(),
             confirm=Confirmer(confirm),
             sleep=lambda s: None,
+            actions=ActionLog(tmp_path / "actions.jsonl"),
         )
 
     return make

@@ -10,12 +10,12 @@ from jarvis.vision import ScreenVision
 def build_perception(ctx: Context) -> list[Tool]:
     vision = ScreenVision(ctx.computer, ctx.llm)
 
-    @tool("Take a screenshot and ask a vision model about it. Use this to see what is on screen.",
+    @tool("Take a screenshot and ask a vision model about it. Use this to see what is on screen.", read_only=True,
           question="What you want to know, e.g. 'Which app is in front?' or 'Is the file saved?'")
     def look_at_screen(question: str = "Describe what is on the screen.") -> str:
         return vision.describe(question)
 
-    @tool("Find a visible UI element on screen and return its mouse coordinates.",
+    @tool("Find a visible UI element on screen and return its mouse coordinates.", read_only=True,
           description="Describe the element precisely, e.g. 'the blue Send button bottom right'.")
     def find_on_screen(description: str) -> dict:
         loc = vision.locate(description)
@@ -83,7 +83,7 @@ def build_control(ctx: Context) -> list[Tool]:
         c.scroll(amount)
         return f"Scrolled {amount}."
 
-    @tool("Get the screen size and current mouse position.")
+    @tool("Get the screen size and current mouse position.", read_only=True)
     def screen_info() -> dict:
         width, height = c.screen_size()
         x, y = c.mouse_position()

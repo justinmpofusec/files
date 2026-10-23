@@ -47,25 +47,43 @@ class Agent:
 
     def needs_confirmation(self, t: Tool) -> bool:
         mode = self.ctx.config.confirm
-        return mode == "always" or (mode == "sensitive" and t.sensitive)
+        if mode == "always":
+            return True
+        if mode == "actions":
+            return not t.read_only
+        if mode == "sensitive":
+            return t.sensitive
+        return False
 
     def execute(self, call: ToolCall) -> ToolResult:
         t = self.tools.get(call.name)
         self.transcript.append(("tool_call", call))
+        decision = "auto"
         if t is None:
             result = ToolResult(call, f"unknown tool {call.name!r}", error=True)
-        elif self.needs_confirmation(t) and not self.ctx.config.dry_run and not self.ctx.confirm(t.name, call.args):
-            result = ToolResult(call, "The user declined this action. Do not retry it; ask what they want instead.",
-                                error=True)
         else:
-            self.ctx.log(f"[{self.name}] {call.name}({_fmt_args(call.args)})")
-            try:
-                result = ToolResult(call, t(**coerce_args(t, call.args)))
-            except TypeError as exc:
-                result = ToolResult(call, f"bad arguments: {exc}", error=True)
-            except Exception as exc:  # tools must never crash the assistant
-                result = ToolResult(call, f"{type(exc).__name__}: {exc}", error=True)
+            if self.ctx.config.dry_run:
+                decision = "dry-run"
+            elif self.needs_confirmation(t):
+                answer = self.ctx.confirm(t.name, call.args)
+                decision = "approved" if answer is True else "declined"
+            if decision == "declined":
+                message = "The user declined this action. Do not retry it; ask what they want instead."
+                if isinstance(answer, str) and answer.strip():
+                    message = f"The user declined this action and said: {answer.strip()!r}. Follow their instruction."
+                result = ToolResult(call, message, error=True)
+            else:
+                self.ctx.log(f"[{self.name}] {call.name}({_fmt_args(call.args)})")
+                try:
+                    result = ToolResult(call, t(**coerce_args(t, call.args)))
+                except TypeError as exc:
+                    result = ToolResult(call, f"bad arguments: {exc}", error=True)
+                except Exception as exc:  # tools must never crash the assistant
+                    result = ToolResult(call, f"{type(exc).__name__}: {exc}", error=True)
         self.transcript.append(("tool_result", result))
+        if t is not None and not t.name.startswith("delegate_to_"):  # sub-agents log their own steps
+            self.ctx.actions.record(agent=self.name, tool=call.name, args=call.args, decision=decision,
+                                    result=result.output, error=result.error)
         return result
 
     def as_tool(self, description: str) -> Tool:
@@ -79,6 +97,7 @@ class Agent:
             name=f"delegate_to_{self.name}",
             description=description,
             func=delegate,
+            read_only=True,  # handing over is harmless; the sub-agent asks before each of its own actions
             parameters={
                 "type": "object",
                 "properties": {"task": {"type": "string", "description": "Full, self-contained task description."}},

@@ -18,11 +18,20 @@ You can act on the computer through tools. Guidelines:
 - Use contact names with messaging tools; call list_contacts if unsure who someone is. Never invent phone numbers.
 - If an action is declined by the user, do not retry it.
 - When a tool fails, explain briefly and suggest a fix. Keep final answers short and say what you actually did.
-{dry_run}"""
+- The user approves your actions one by one. If they decline and say what to do instead, do that.
+{extra}"""
+
+MAC_NOTE = ("- This is a Mac: use 'command' in shortcuts, and run_applescript for scriptable apps "
+            "(Music, Notes, Reminders, Calendar, Finder, Safari, volume).")
+VOICE_NOTE = ("- Your replies are SPOKEN aloud: answer in one to three short, natural sentences. "
+              "No markdown, lists, URLs or emoji.")
+DRY_RUN_NOTE = "- DRY-RUN MODE: actions are only simulated; tell the user nothing really happened."
 
 
 def build_jarvis(ctx: Context) -> Agent:
-    note = "- DRY-RUN MODE: actions are only simulated; tell the user nothing really happened." if ctx.config.dry_run else ""
+    notes = [MAC_NOTE if ctx.config.os_name == "Darwin" else "",
+             VOICE_NOTE if ctx.config.speak else "",
+             DRY_RUN_NOTE if ctx.config.dry_run else ""]
     tools = ToolRegistry().add(
         *system.build(ctx),
         *messaging.build(ctx),
@@ -34,5 +43,6 @@ def build_jarvis(ctx: Context) -> Agent:
         blender.build(ctx).as_tool(
             "Hand a 3D task (create/modify/inspect/render .blend scenes) to the Blender sub-agent. Returns its report."),
     )
-    return Agent(name="jarvis", system_prompt=PROMPT.format(os_name=ctx.config.os_name, dry_run=note),
+    prompt = PROMPT.format(os_name=ctx.config.os_name, extra="\n".join(n for n in notes if n))
+    return Agent(name="jarvis", system_prompt=prompt,
                  tools=tools, ctx=ctx)

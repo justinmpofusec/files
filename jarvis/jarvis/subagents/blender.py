@@ -104,7 +104,7 @@ def build_tools(ctx: Context) -> list[Tool]:
     def blender_run_script(code: str, blend_file: str = "", save_as: str = "") -> str:
         return run_script(code, blend_file, save_as)
 
-    @tool("Show the objects, materials, camera and render settings of a .blend file.",
+    @tool("Show the objects, materials, camera and render settings of a .blend file.", read_only=True,
           blend_file="Absolute path to the .blend file.")
     def blender_inspect(blend_file: str) -> str:
         return run_script(INSPECT_SCRIPT, blend_file)

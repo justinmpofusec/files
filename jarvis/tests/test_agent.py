@@ -93,6 +93,53 @@ def test_confirm_modes(make_ctx):
     assert ctx.confirm.asked == []  # nothing real happens in dry-run, so no prompt
 
 
+@tool("Looks only.", read_only=True)
+def peek() -> str:
+    return "a desktop"
+
+
+def test_actions_mode_asks_for_everything_except_looking(make_ctx):
+    ctx = make_ctx(replies=[LLMReply(tool_calls=[ToolCall("peek"), ToolCall("add", {"a": 1, "b": 2}),
+                                                 ToolCall("danger")]), say("ok")])
+    assert ctx.config.confirm == "actions"  # the default
+    make_agent(ctx, peek, add, danger).run("x")
+    assert [n for n, _ in ctx.confirm.asked] == ["add", "danger"]
+
+    ctx = make_ctx(replies=[LLMReply(tool_calls=[ToolCall("peek"), ToolCall("add", {"a": 1, "b": 2}),
+                                                 ToolCall("danger")]), say("ok")])
+    ctx.config.confirm = "sensitive"
+    make_agent(ctx, peek, add, danger).run("x")
+    assert [n for n, _ in ctx.confirm.asked] == ["danger"]
+
+
+def test_decline_with_instruction_is_passed_to_model(make_ctx):
+    ctx = make_ctx(replies=[call("add", a=1, b=1), say("ok")], confirm="use 5 and 6 instead")
+    make_agent(ctx, add).run("x")
+    (result,) = ctx.llm.sent[1]
+    assert result.error and "use 5 and 6 instead" in result.output
+
+
+def test_actions_are_logged(make_ctx):
+    ctx = make_ctx(replies=[LLMReply(tool_calls=[ToolCall("peek"), ToolCall("add", {"a": 1, "b": 2}),
+                                                 ToolCall("broken")]), say("ok")])
+    ctx.confirm.answer = True
+    make_agent(ctx, peek, add, broken).run("x")
+    entries = ctx.actions.tail()
+    assert [(e["tool"], e["decision"], e["ok"]) for e in entries] == [
+        ("peek", "auto", True), ("add", "approved", True), ("broken", "approved", False)]
+    assert entries[1]["args"] == {"a": 1, "b": 2} and entries[1]["result"] == "3"
+    assert ctx.actions.stats() == {"actions": 3, "declined": 0, "failed": 1}
+
+
+def test_delegation_does_not_ask_but_subagent_steps_do(make_ctx):
+    ctx = make_ctx(replies=[call("delegate_to_test", task="t"), call("add", a=1, b=1), say("sub"), say("done")])
+    sub = make_agent(ctx, add)
+    parent = Agent("parent", "p", ToolRegistry().add(sub.as_tool("math")), ctx)
+    parent.run("x")
+    assert [n for n, _ in ctx.confirm.asked] == ["add"]
+    assert [e["tool"] for e in ctx.actions.tail()] == ["add"]
+
+
 def test_max_steps_stops_loops(make_ctx):
     ctx = make_ctx(replies=[call("add", a=1, b=1)] * 10)
     out = make_agent(ctx, add, max_steps=3).run("loop forever")

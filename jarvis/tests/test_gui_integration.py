@@ -6,15 +6,18 @@ import json
 import os
 import shutil
 import subprocess
+import sys
 import time
 
 import pytest
 
 from conftest import call, say
 
-pytestmark = [pytest.mark.gui, pytest.mark.skipif(not os.environ.get("DISPLAY") and os.name != "nt"
-                                                  and not os.uname().sysname == "Darwin",
-                                                  reason="no display (use xvfb-run)")]
+# Linux under xvfb-run: a virtual screen, always safe to run. On a real desktop (e.g. your Mac) these tests
+# really move the mouse and type, so they only run when asked: JARVIS_GUI_TESTS=1 pytest -m gui
+_virtual = sys.platform.startswith("linux") and bool(os.environ.get("DISPLAY"))
+pytestmark = [pytest.mark.gui, pytest.mark.skipif(not (_virtual or os.environ.get("JARVIS_GUI_TESTS") == "1"),
+                                                  reason="real-screen tests: set JARVIS_GUI_TESTS=1 (or use xvfb-run)")]
 
 
 def tk_python():

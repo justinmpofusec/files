@@ -45,7 +45,7 @@ def build(ctx: Context) -> list[Tool]:
             return info.get(key) or info.get("phone")
         return None
 
-    @tool("List the saved contacts Jarvis can message by name.")
+    @tool("List the saved contacts Jarvis can message by name.", read_only=True)
     def list_contacts() -> str:
         contacts = ctx.config.load_contacts()
         if not contacts:

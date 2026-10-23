@@ -9,7 +9,12 @@ from dataclasses import dataclass, field
 from pathlib import Path
 
 DEFAULT_MODEL = "gemini-3.5-flash"
-CONFIRM_MODES = ("always", "sensitive", "never")
+# When Jarvis asks before running a tool:
+#   always    - every tool, even just looking at the screen
+#   actions   - anything that changes something (clicks, typing, opening apps, messages); looking is free
+#   sensitive - only high-stakes tools (messages, shell commands, AppleScript, Blender scripts)
+#   never     - fully autonomous
+CONFIRM_MODES = ("always", "actions", "sensitive", "never")
 
 
 def _load_dotenv(path: Path) -> None:
@@ -36,11 +41,15 @@ class Config:
     model: str = DEFAULT_MODEL
     vision_model: str = DEFAULT_MODEL
     dry_run: bool = False
-    confirm: str = "sensitive"
+    confirm: str = "actions"
     max_steps: int = 25
     contacts_file: Path = Path("contacts.json")
     blender_path: str = "blender"
     whatsapp_mode: str = "auto"  # auto | desktop | web
+    speak: bool = False  # read replies aloud
+    voice: str = ""  # macOS `say` voice, e.g. "Daniel"; empty = system default
+    speech_rate: int = 190  # words per minute
+    log_file: Path | None = field(default_factory=lambda: Path.home() / ".jarvis" / "actions.jsonl")
     os_name: str = field(default_factory=platform.system)  # "Darwin", "Windows", "Linux"
 
     def __post_init__(self) -> None:
@@ -56,11 +65,16 @@ class Config:
             model=env.get("JARVIS_MODEL", DEFAULT_MODEL),
             vision_model=env.get("JARVIS_VISION_MODEL") or env.get("JARVIS_MODEL", DEFAULT_MODEL),
             dry_run=_bool(env.get("JARVIS_DRY_RUN")),
-            confirm=env.get("JARVIS_CONFIRM", "sensitive"),
+            confirm=env.get("JARVIS_CONFIRM", "actions"),
             max_steps=int(env.get("JARVIS_MAX_STEPS", "25")),
             contacts_file=Path(env.get("JARVIS_CONTACTS", "contacts.json")),
             blender_path=env.get("JARVIS_BLENDER", "blender"),
             whatsapp_mode=env.get("JARVIS_WHATSAPP", "auto"),
+            speak=_bool(env.get("JARVIS_SPEAK")),
+            voice=env.get("JARVIS_VOICE", ""),
+            speech_rate=int(env.get("JARVIS_SPEECH_RATE", "190")),
+            log_file=Path(env["JARVIS_LOG_FILE"]).expanduser() if env.get("JARVIS_LOG_FILE")
+            else Path.home() / ".jarvis" / "actions.jsonl",
         )
 
     def load_contacts(self) -> dict[str, dict[str, str]]:

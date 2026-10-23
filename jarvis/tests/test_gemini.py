@@ -130,3 +130,11 @@ def test_vision_sends_image_and_json_mode():
     assert req["contents"][0].inline_data.data == b"\x89PNGdata"
     assert req["contents"][1] == "find it"
     assert req["config"].response_mime_type == "application/json"
+
+
+def test_transcribe_sends_wav_audio():
+    llm, models = make([response(types.Part.from_text(text='"open spotify"\n'))])
+    assert llm.transcribe(b"RIFFfakewav") == "open spotify"
+    req = models.requests[0]
+    assert req["contents"][0].inline_data.mime_type == "audio/wav"
+    assert "Transcribe" in req["contents"][1]
